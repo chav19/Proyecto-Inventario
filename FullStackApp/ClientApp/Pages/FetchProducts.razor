@@ -1,0 +1,81 @@
+@page "/fetchproducts"
+@inject HttpClient HttpClient
+@using System.Text.Json
+
+<h3>Product List (Optimized)</h3>
+
+@if (errorMessage != null)
+{
+    <div style="color: red; margin-bottom: 15px;">
+        <strong>Error:</strong> @errorMessage
+    </div>
+}
+
+<ul>
+    @if (products != null)
+    {
+        @foreach (var product in products)
+        {
+            <li>
+                <strong>@product.Name</strong> - $@product.Price.ToString("N2") 
+                (Stock: @product.Stock) 
+                <span style="color: gray; font-style: italic;">[Category: @product.Category?.Name]</span>
+            </li>
+        }
+    }
+    else if (errorMessage == null)
+    {
+        <li>Loading products...</li>
+    }
+</ul>
+
+@code {
+    private Product[]? products;
+    private string? errorMessage;
+    private bool isExecuting = false; // Copilot: Control flag to prevent redundant API triggers
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Copilot Optimization: Guard clause to block concurrent duplicated requests
+        if (isExecuting || products != null) return;
+
+        try
+        {
+            isExecuting = true;
+
+            var response = await HttpClient.GetAsync("/api/productlist");
+            response.EnsureSuccessStatusCode();
+            var json = await response.Content.ReadAsStringAsync();
+            
+            // Copilot: Resilient JSON Deserialization handling nested objects
+            products = JsonSerializer.Deserialize<Product[]>(json, new JsonSerializerOptions 
+            { 
+                PropertyNameCaseInsensitive = true 
+            });
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to load products. Details: {ex.Message}";
+            Console.WriteLine($"Error: {ex.Message}");
+        }
+        finally
+        {
+            isExecuting = false;
+        }
+    }
+
+    public class Product
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public double Price { get; set; }
+        public int Stock { get; set; }
+        public CategoryClass? Category { get; set; } 
+    }
+
+    public class CategoryClass
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+    }
+}
